@@ -14,6 +14,11 @@ on:
         type: choice
         options: ['false', 'true']
         default: 'false'
+      lockfile:
+        description: 'frozen = bun install --frozen-lockfile (repo default), keep = bun install with bun.lock, fresh = delete bun.lock then bun install'
+        type: choice
+        options: [frozen, keep, fresh]
+        default: frozen
 
 permissions:
   contents: read
@@ -46,7 +51,18 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: |
+          case "${{ inputs.lockfile || 'frozen' }}" in
+            frozen) bun install --frozen-lockfile ;;
+            keep) bun install ;;
+            fresh) rm -f bun.lock bun.lockb && bun install ;;
+          esac
+
+      - name: Tarball URLs in bun.lock
+        run: |
+          echo "entries with an explicit https URL: $(grep -cE '\"https://' bun.lock || true)"
+          grep -oE '\"https://[^/\"]+' bun.lock | sort | uniq -c || true
+          git status --short bun.lock
 
       - name: Type check
         run: bun run typecheck
